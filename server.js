@@ -1,0 +1,17 @@
+import express from 'express';
+import multer from 'multer';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import {fileURLToPath} from 'url';
+const __dirname=path.dirname(fileURLToPath(import.meta.url));
+const app=express();
+const uploadDir=path.join(__dirname,'uploads');fs.mkdirSync(uploadDir,{recursive:true});
+const allowed=new Set(['image/jpeg','image/png','image/webp','application/pdf']);
+const storage=multer.diskStorage({destination:uploadDir,filename:(_,file,cb)=>cb(null,`${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_')}`)});
+const upload=multer({storage,limits:{fileSize:10*1024*1024},fileFilter:(_,file,cb)=>cb(null,allowed.has(file.mimetype))});
+app.use(cors());app.use(express.static(path.join(__dirname,'dist')));app.use('/uploads',express.static(uploadDir));
+app.post('/api/upload',upload.single('file'),(req,res)=>{if(!req.file)return res.status(400).json({error:'Invalid file type or missing file.'});res.json({originalName:req.file.originalname,url:`/uploads/${req.file.filename}`,size:req.file.size,mimeType:req.file.mimetype})});
+app.use((err,req,res,next)=>{if(err instanceof multer.MulterError)return res.status(400).json({error:err.code==='LIMIT_FILE_SIZE'?'File must be 10 MB or smaller.':'Upload failed.'});next(err)});
+app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'dist','index.html')));
+const port=process.env.PORT||3000;app.listen(port,()=>console.log(`UploadFlow running on http://localhost:${port}`));
